@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Hospital Beds Per Capita</title>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+      html { height:100%;}
+      body {
+        height:100%;
+        padding: 0;
+        margin: 0;
+      }
+      
+      h1 {
+        z-index: 1000;            
+        position: absolute;            
+        left: 20px;            
+        top: 10px;            
+        padding: 6px 8px;    
+        font-size: 48px;                 
+        text-align: right;            
+        background: white;            
+        background: rgba(255, 255, 255, 0.8);
+        box-shadow: 0 0 15px rgba(0, 0, 0, 0.2);  
+        border-color: black;  
+        border-style: outset;                      
+        border-radius: 5px; 
+      }
+
+      h2{
+        z-index: 1000;            
+        position: absolute;            
+        left: 20px;            
+        bottom: 20px;            
+        padding: 6px 8px;
+        font-family: Georgia, 'Times New Roman', Times, serif;  
+        font-size: large;                 
+        text-align: left;            
+        background: white;            
+        background: rgba(255, 255, 255, 0.8);
+        box-shadow: 0 0 15px rgba(0, 0, 0, 0.2);  
+        border-color: black;  
+        border-style: outset;                      
+        border-radius: 5px; 
+      }
+
+      #map {
+        width: 100%;
+        height: 100%;
+      }
+      .info {            
+      z-index: 1000;            
+      position: absolute;            
+      right: 20px;            
+      top: 60px;            
+      padding: 5px 6px;           
+      font-size: 18px;
+      font-family: Georgia, 'Times New Roman', Times, serif;
+      line-height: 1;
+      text-align: right;            
+      background: white;            
+      background: rgba(255, 255, 255, 0.8);
+      box-shadow: 0 0 15px rgba(0, 0, 0, 0.2);
+      border-color: black;  
+      border-style: outset;                                    
+    }          
+
+
+        .legend {              
+        z-index: 1000;              
+        position: absolute;              
+        right: 20px;              
+        bottom: 150px;              
+        padding: 6px 8px;              
+        font: 14px Arial, Helvetica, sans-serif;              
+        background: white;              
+        background: rgba(255, 255, 255, 0.8);              
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);   
+        border-color: black;  
+        border-style: outset;          
+        }
+          
+              
+        .legend i {              
+        width: 18px;              
+        height: 16px;              
+        float: left;              
+        margin-right: 8px;              
+        opacity: 0.7;          
+        }
+
+    </style>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-ajax/2.1.0/leaflet.ajax.min.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.0/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chroma-js/1.3.4/chroma.min.js"></script>
+  </head>
+  <body>
+    
+    <h1>Staffed Hospital Beds in North Carolina by County</h1>
+    <h2>For each county on this map, the number of hospital beds present in the county, found using a State of North Carolina Department of Health and Human Services document for 2024. Then this number was divided by the population of each county. This map highlights the areas that have the highest and lowest bed availabilty. </h2>
+    <div id='map'></div>
+    <div class='legend'></div>
+    
+    <script>
+      // 1. Create map object and base layer
+      var map = L.map('map').setView([35.68801493142208, -79.11787916724133], 7.4); // Centered over NC
+      L.tileLayer('http://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png').addTo(map);
+      
+      // 2. Define class breaks
+      var grades = [0, 0.8, 1.6, 2.4 , 3.2 , 4, 4.8, 5.6];
+
+      // Determine color ramp (using blue colors)
+      var colors = chroma.scale('Blues').colors(grades.length-1);
+
+      // Get color based on the class of the input value            
+      function getColor(d) {               
+        for (var i = 0; i < grades.length - 1; i++) {                    
+          if (d > grades[i] && d < grades[i+1]) return colors[i];                
+        }                
+        if (d > grades[grades.length - 1]) return colors[grades.length];            
+      }
+      
+      function style(feature) {            
+        return {                    
+          weight: 2,                    
+          opacity: 1,                    
+          color: 'grey',                                        
+          fillOpacity: 0.7,                    
+          fillColor: getColor(feature.properties.BedsPer1000)                
+        };            
+      }
+
+      // 3. Add GeoJSON layer to map
+      geojson = L.geoJson.ajax("assets/map.geojson", {
+        style: style
+      }).addTo(map);
+
+      // code for the control
+      var info = L.control();
+                  
+      info.onAdd = function (map) {                
+      this._div = L.DomUtil.create('div', 'info'); // create a div with a class "info"                
+      this.update();                
+      return this._div;            
+      };
+
+                  
+      // method that we will use to update the control based on feature properties passed            
+      info.update = function (props) {                
+      this._div.innerHTML = '<h4 >Staffed Hospital Beds</h4>' +  (props ?                    
+      '<b>' + props.County + '</b><br />' + props.BedsPer1000 + ' beds per 1000 people'                    
+      : 'Hover over a county');            
+      };
+                  
+      info.addTo(map);
+
+      //Add highlight feature when mouse hovers over
+      function highlightFeature(e) {                
+      // e indicates the current event, we could call it anything                
+      var layer = e.target;                
+      //the target captures the object that the event associates with                
+      layer.setStyle({                    
+      weight: 8,                    
+      opacity: 0.8,                    
+      color: '#00ff7b',                                  
+      });
+                          
+      // then bring the layer to the front.                
+      layer.bringToFront();                
+      // select the update class, and update the contet with the input value.                
+      // remember whenver we call feature.properties, we're looking in the attributes                
+      // for a particular layer - state name and state density, for example                
+      info.update(layer.feature.properties);            
+      }
+
+      // 3.2.2 zoom to the highlighted feature when the mouse clicks it.            
+      function zoomToFeature(e) {                
+      map.fitBounds(e.target.getBounds());            
+      }
+
+      //continuing in a new subsequent section
+      // 3.2.3 reset the hightlighted feature when the mouse is out of its region.            
+      function resetHighlight(e) {                
+      geojson.resetStyle(e.target);                
+      info.update();  //this line will be called later            
+      }
+
+      // now use on each feature option to add listeners on our state layers
+      // 3.3 add these events to the layer object.            
+      function onEachFeature(feature, layer) {                
+      layer.on({                    
+      mouseover: highlightFeature,                    
+      click: zoomToFeature,                    
+      mouseout: resetHighlight                
+      });            
+      }
+
+      // 3.4 assign the geojson data path, style option and onEachFeature option. And then Add the geojson layer to the map.            
+      geojson = L.geoJson.ajax("assets/map.geojson", {                
+      style: style,                
+      onEachFeature: onEachFeature            
+      }).addTo(map);
+
+      // 4. create the legend            
+      // Create an array to store legend labels
+      var labels = [];
+      // Add the legend labels
+      labels.push('<i style="background:' + colors[0] + '"></i> <span style="color: grey;">0</span> - ' + grades[0]);
+      // Loop through the rest of the grade intervals
+      for (var i = 0; i < grades.length - 1; i++) {
+          labels.push('<i style="background:' + colors[i] + '"></i> ' + grades[i] + ' - ' + grades[i + 1]);
+      }
+      // Join the labels array with line breaks and set it as the HTML content of the legend
+      $(".legend").html(labels.join('<br>'));
+      // Set the color of the legend item corresponding to zero to grey
+      $(".legend i").eq(0).css("background-color", "grey");
+
+       // 5. create the credits
+       L.control.attribution({position: 'bottomright'}).addTo(map);
+      map.attributionControl.addAttribution('Hospitals by County; <a href="https://info.ncdhhs.gov/dhsr/data/hllistco.pdf">State of North Carolina Department of Health and Human Services</a> | Population by County; <a href="https://worldpopulationreview.com/states/north-carolina/counties"> World Population Review </a> | This map is made by Angela Andrade');
+       </script>
+  </body>
+</html>
